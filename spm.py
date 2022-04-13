@@ -51,21 +51,31 @@ class Project:
 		"""
 		sprite = self.get_sprite('Main')
 		# make = make block-id trackable
+		# make variables
+		sprite['variables'] = {
+			value[0]: value
+			for key, value in sprite['variables'].items()
+		}
 		# make for keys
 		sprite['blocks'] = {
 			(self.id+key) if key.count(OMEGA) == 0 else key: value
 			for key, value in sprite['blocks'].items()
 		}
 		for block in sprite['blocks'].values():
+			if type(block) is list:
+				block[2] = block[1]
+				continue
 			# make for next, parent
-			if not block['next'] is None and block['next'].count(OMEGA) == 0:
+			if block['next'] is not None and block['next'].count(OMEGA) == 0:
 				block['next'] = self.id+block['next']
-			if not block['parent'] is None and block['parent'].count(OMEGA) == 0:
+			if block['parent'] is not None and block['parent'].count(OMEGA) == 0:
 				block['parent'] = self.id+block['parent']
 			# make for block inputs
 			for input in block['inputs'].values():
 				if input[0] in (1,2,3) and type(input[1]) is str and input[1].count(OMEGA) == 0:
 					input[1] = self.id+input[1]
+				if input[0] == 3 and type(input[1]) is list and input[1][0] == 12:
+					input[1][2] = input[1][1]
 			# make for custom blocks
 			if ( block['opcode'] == 'procedures_definition'
 				 and block['inputs']['custom_block'][1].count(OMEGA) == 0 ):
@@ -99,10 +109,9 @@ class Project:
 
 	def add_module(self, module: 'Project'):
 		sprite = self.get_sprite('Main')
-		sprite['blocks'] = {
-			**self.get_blocks_except_module(module.id),
-			**module.get_module_blocks()
-		}
+		module_sprite = module.get_sprite('Main')
+		sprite['variables'] = {**sprite['variables'], **module_sprite['variables']}
+		sprite['blocks'] = {**self.get_blocks_except_module(module.id), **module.get_module_blocks()}
 	
 	def remove_module(self, module_id):
 		sprite = self.get_sprite('Main')
