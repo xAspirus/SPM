@@ -1,5 +1,6 @@
 import json
 import os
+import sys
 
 from rich import print as rprint
 
@@ -43,6 +44,9 @@ class Project:
 			if sprite['name'] == sprite_name:
 				return sprite
 		raise KeyError(f'Sprite "{sprite_name}" does not exist')
+
+	def get_stage(self):
+		return self.get_sprite('Stage')
 
 	def make_block_ids_trackable(self):
 		"""
@@ -116,3 +120,50 @@ class Project:
 	def remove_module(self, module_id):
 		sprite = self.get_sprite('Main')
 		sprite['blocks'] = self.get_blocks_except_module(module_id)
+
+
+class Interface:
+	def __init__(self):
+		arg = sys.argv[1:]
+		if len(arg) > 0:
+			if len(arg) > 1:
+				if arg[1] == 'list-modules':
+					self.list_modules(arg[0])
+				elif len(arg) > 2:
+					if   arg[1] == 'add':
+						self.add(arg[0], arg[2])
+					elif arg[1] == 'remove':
+						self.remove(arg[0], arg[2])
+					else:
+						rprint(f'[bold][red] {arg[1:]} is not a valid command')
+						exit(1)
+				else:
+					rprint('[bold][red] Missing module')
+					exit(1)
+		else:
+			rprint('[bold][red] Please enter a command[/red] (See manual)')
+			exit(1)
+	
+	def list_modules(self, project_path):
+		project = Project(project_path)
+		rprint(project.list_modules())
+	
+	def add(self, project_path, module_path):
+		project = Project(project_path)
+		project.make_block_ids_trackable()
+		module = Project(module_path)
+		module.make_block_ids_trackable()
+		project.add_module(module)
+		project.package_sb3()
+
+	def remove(self, project_path, module_id):
+		project = Project(project_path)
+		project.make_block_ids_trackable()
+		project.remove_module(module_id)
+		project.package_sb3()
+
+
+if __name__ == '__main__':
+	project = Project('./Tests/Main.sb3')
+	rprint(project.json)
+	# Interface()
