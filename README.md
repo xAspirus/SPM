@@ -14,7 +14,7 @@ PATH+=(~/.bin)
 PATH=$PATH:~/.bin
 ```
 
-# Warning: Using SPM with Turbowarp
+## Warning: Using SPM with Turbowarp
 Turbowarp has a feature which optimizes the IDs of blocks, which makes it
 impossible for spm to track blocks. To fix this add this javascript code to
 a userscript.
