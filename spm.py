@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import json
 import os
 import sys
@@ -84,7 +86,7 @@ class Project:
 			if ( block['opcode'] == 'procedures_definition'
 				 and block['inputs']['custom_block'][1].count(OMEGA) == 0 ):
 				block['inputs']['custom_block'][1] = self.id+block['inputs']['custom_block'][1]
-			if block['opcode'] == 'procedures_prototype':
+			elif block['opcode'] in ('procedures_prototype', 'procedures_call'):
 				block['mutation']['argumentids'] = str([
 					self.id+x if x.count(OMEGA) == 0 else x
 					for x in eval(block['mutation']['argumentids'])
@@ -93,16 +95,31 @@ class Project:
 					(self.id+key) if key.count(OMEGA) == 0 else key: value
 					for key, value in block['inputs'].items()
 				}
-				for input in block['inputs'].values():
-					if input[1].count(OMEGA) == 0:
-						input[1] = self.id+input[1]
+				if block['opcode'] == 'procedures_prototype':
+					for input in block['inputs'].values():
+						if input[1].count(OMEGA) == 0:
+							input[1] = self.id+input[1]
+
 
 	def get_module_blocks(self):
-		return {
-			key: value
-			for key, value in self.get_sprite('Main')['blocks'].items()
+		blocks = self.get_sprite('Main')['blocks']
+		blocks = {
+			key: block
+			for key, block in blocks.items()
 			if key.startswith(self.id)
+			and not (
+				block['opcode'] == 'procedures_definition'
+				and '!' in blocks[block['inputs']['custom_block'][1]]['mutation']['proccode']
+			)
 		}
+		for block in blocks.values():
+			if block['topLevel']:
+				block['x'] = 0
+				block['y'] = 0
+			if block['opcode'] == 'procedures_definition':
+				if '_' in blocks[block['inputs']['custom_block'][1]]['mutation']['proccode']:
+					block['shadow'] = True
+		return blocks
 
 	def get_blocks_except_module(self, module_id):
 		return {
@@ -164,6 +181,6 @@ class Interface:
 
 
 if __name__ == '__main__':
-	project = Project('./Tests/Main.sb3')
-	rprint(project.json)
-	# Interface()
+	#project = Project('./Tests/Main.sb3')
+	#rprint(project.json)
+	Interface()
