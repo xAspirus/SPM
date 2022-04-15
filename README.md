@@ -48,11 +48,13 @@ If using Turbowarp Desktop, see [Advanced customizations](https://github.com/Tur
 
 #### Adding a module to a project
 `spm /path/to/Main_Project.sb3 add /path/to/Module_Project.sb3`
+
 All blocks, variables, lists and costumes from Module_Project.sb3 will be
 added to Main_Project.sb3.
 
 #### Removing a module from a project
 `spm /path/to/Main_Project.sb3 remove Module_Project`
+
 When removing a module, only specify the name of the module project.
 
 #### Updating a module in a project
@@ -76,5 +78,5 @@ build system.
 
 ## Thanks to
 
-@scratch/garbomuffin
-@scratch/geotale
+* @scratch/garbomuffin
+* @scratch/geotale
