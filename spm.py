@@ -5,29 +5,31 @@ import os
 import sys
 
 from rich import print as rprint
+from pathlib import Path
 
 AnyPath = str
 OMEGA = 'Ω'
 
 
 class Zip:
-	""" Header for zip/unzip commands """
-	def unzip(in_path: str, out_path: str):
+	def unzip(in_path: AnyPath, out_path: AnyPath):
 		os.system(f"unzip -o '{in_path}' -d '{out_path}'")
 	
-	def zip(in_path: str, out_path: str):
+	def zip(in_path: AnyPath, out_path: AnyPath):
 		os.system(f"zip -rj '{out_path}' '{in_path}'")
 
 
 class Project:
 	def __init__(self, sb3_path: AnyPath):
-		self.name = sb3_path.split('/')[-1].replace('.sb3','')
+		sb3_path = Path(sb3_path)
+		if not os.path.isfile(self.sb3_path):
+			raise FileNotFoundError(f'Project file "{self.sb3_path}" does not exist')
+		if sb3_path.suffix != 'sb3':
+			raise Exception(f'"{sb3_path}" is not a scratch project file.')
+		self.name = sb3_path.stem
 		self.id = self.name + OMEGA
 		self.sb3_path = sb3_path
 		self.json = {}
-
-		if not os.path.isfile(self.sb3_path):
-			raise FileNotFoundError(f'Project file "{self.sb3_path}" does not exist')
 		Zip.unzip(self.sb3_path, f'./__{self.name}__')
 		with open(f'./__{self.name}__/project.json', 'r') as fp:
 			self.json = json.loads(fp.read())
@@ -35,22 +37,21 @@ class Project:
 	def __del__(self):
 		os.system(f"rm -rf './__{self.name}__'")
 
-	def package_sb3(self, output_file: AnyPath = None):
+	def package_sb3(self, output_file: AnyPath = None) -> 'Project':
 		if output_file is None: output_file = self.sb3_path
-		with open(f'./__{self.name}__/project.json', 'w') as fp:
-			fp.write(json.dumps(self.json))
+		with open(f'./__{self.name}__/project.json', 'w') as fp: fp.write(json.dumps(self.json))
 		Zip.zip(f'./__{self.name}__', output_file)
+		return self
 	
-	def get_sprite(self, sprite_name: str):
+	def get_sprite(self, sprite_name: str) -> dict:
 		for sprite in self.json['targets']:
-			if sprite['name'] == sprite_name:
-				return sprite
+			if sprite['name'] == sprite_name: return sprite
 		raise KeyError(f'Sprite "{sprite_name}" does not exist')
 
 	def get_stage(self):
 		return self.get_sprite('Stage')
 
-	def make_block_ids_trackable(self):
+	def make_block_ids_trackable(self) -> 'Project':
 		"""
 		assuming that block-ids will be random strings
 		if not already starting with self.id: append self.id to block-id
@@ -99,9 +100,9 @@ class Project:
 					for input in block['inputs'].values():
 						if input[1].count(OMEGA) == 0:
 							input[1] = self.id+input[1]
+		return self
 
-
-	def get_module_blocks(self):
+	def get_module_blocks(self) -> dict:
 		blocks = self.get_sprite('Main')['blocks']
 		blocks = {
 			key: block
@@ -121,22 +122,24 @@ class Project:
 					block['shadow'] = True
 		return blocks
 
-	def get_blocks_except_module(self, module_id):
+	def get_blocks_except_module(self, module_id: str) -> dict:
 		return {
 			key: value
 			for key, value in self.get_sprite('Main')['blocks'].items()
 			if not key.startswith(module_id)
 		}
 
-	def add_module(self, module: 'Project'):
+	def add_module(self, module: 'Project') -> 'Project':
 		sprite = self.get_sprite('Main')
 		module_sprite = module.get_sprite('Main')
 		sprite['variables'] = {**sprite['variables'], **module_sprite['variables']}
 		sprite['blocks'] = {**self.get_blocks_except_module(module.id), **module.get_module_blocks()}
+		return self
 	
-	def remove_module(self, module_id):
+	def remove_module(self, module_id: str) -> 'Project':
 		sprite = self.get_sprite('Main')
 		sprite['blocks'] = self.get_blocks_except_module(module_id)
+		return self
 
 
 class Interface:
@@ -162,22 +165,19 @@ class Interface:
 			exit(1)
 	
 	def list_modules(self, project_path):
-		project = Project(project_path)
-		rprint(project.list_modules())
+		rprint(Project(project_path).list_modules())
 	
-	def add(self, project_path, module_path):
-		project = Project(project_path)
-		project.make_block_ids_trackable()
-		module = Project(module_path)
-		module.make_block_ids_trackable()
-		project.add_module(module)
-		project.package_sb3()
+	def add(self, project_path: AnyPath, module_path: AnyPath):
+		( Project(project_path)
+			.make_block_ids_trackable()
+			.add_module(Project(module_path).make_block_ids_trackable())
+			.package_sb3() )
 
 	def remove(self, project_path, module_id):
-		project = Project(project_path)
-		project.make_block_ids_trackable()
-		project.remove_module(module_id)
-		project.package_sb3()
+		( Project(project_path)
+			.make_block_ids_trackable()
+			.remove_module(module_id)
+			.package_sb3() )
 
 
 if __name__ == '__main__':
