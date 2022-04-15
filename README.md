@@ -30,7 +30,7 @@ vm.toJSON = function() {
 	)
 }
 ```
-If using Turbowarp Desktop, see (Advanced customizations)[https://github.com/TurboWarp/desktop#advanced-customizations]
+If using Turbowarp Desktop, see [Advanced customizations](https://github.com/TurboWarp/desktop#advanced-customizations)
  
 
 ## Documentation
