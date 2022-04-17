@@ -285,7 +285,7 @@ class Interface():
 	@staticmethod
 	def add(main_path: str, package_path: str, sprite_name: str):
 		if not '.sb3' in package_path and not '/' in package_path:
-			package_path = f'spm-modules/{package_path}'
+			package_path = f'spm-modules/{package_path}.sb3'
 			rprint(f'Resolving to [green]{package_path}[/green] for package path')
 		main = Package(main_path)
 		try:
