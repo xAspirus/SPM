@@ -1,186 +1,310 @@
 #!/usr/bin/env python3
 
+# Scratch Package Manager
+# -----------------------
+# Modular project development for Scratch
+# - Written by Aspirus
+
+"""
+[bold]Commands:[/bold]
+  [blue]Setup project for use with SPM[/blue]
+   > spm /path/to/main init
+  [blue]Add package to main, if already added: package is updated[/blue]
+   > spm /path/to/main SpriteName add /path/to/package
+  [blue]Remove package from main[/blue]
+  [blue]If only package name is provided: SPM looks inside ./spm-modules/[/blue]
+   > spm /path/to/main SpriteName add PackageName
+  [blue]Remove package by name[/blue]
+   > spm /path/to/main SpriteName remove PackageName
+"""
+
+
 import json
 import os
 import sys
+import tempfile
 
 from rich import print as rprint
-from pathlib import Path
-
-AnyPath = str
-OMEGA = 'Ω'
+from collections import defaultdict
 
 
 class Zip:
-	def unzip(in_path: AnyPath, out_path: AnyPath):
-		os.system(f"unzip -o '{in_path}' -d '{out_path}'")
+	@staticmethod
+	def unzip(in_path: str, out_path: str):
+		os.system(f"unzip -o '{in_path}' -d '{out_path}' > /dev/null")
 	
-	def zip(in_path: AnyPath, out_path: AnyPath):
-		os.system(f"zip -rj '{out_path}' '{in_path}'")
+	@staticmethod
+	def zip(in_path: str, out_path: str):
+		os.system(f"zip -rj '{out_path}' '{in_path}' > /dev/null")
 
 
-class Project:
-	def __init__(self, sb3_path: AnyPath):
-		sb3_path = Path(sb3_path)
-		if not os.path.isfile(self.sb3_path):
-			raise FileNotFoundError(f'Project file "{self.sb3_path}" does not exist')
-		if sb3_path.suffix != 'sb3':
-			raise Exception(f'"{sb3_path}" is not a scratch project file.')
-		self.name = sb3_path.stem
-		self.id = self.name + OMEGA
-		self.sb3_path = sb3_path
+class Package:
+	def __init__(
+	self,
+	sb3_path: str,
+	name: str = '',
+	description: str = '',
+	version: str = None):
+		self.name = name
+		self.description = description
+		self.version = '0.0.0' if version is None else version
+		self.sprites = {}
+		self.unpacked = tempfile.TemporaryDirectory().name
 		self.json = {}
-		Zip.unzip(self.sb3_path, f'./__{self.name}__')
-		with open(f'./__{self.name}__/project.json', 'r') as fp:
-			self.json = json.loads(fp.read())
+		self.load_sb3(sb3_path)
 	
 	def __del__(self):
-		os.system(f"rm -rf './__{self.name}__'")
+		os.system(f'rm -rf \'{self.unpacked}\'')
 
-	def package_sb3(self, output_file: AnyPath = None) -> 'Project':
-		if output_file is None: output_file = self.sb3_path
-		with open(f'./__{self.name}__/project.json', 'w') as fp: fp.write(json.dumps(self.json))
-		Zip.zip(f'./__{self.name}__', output_file)
+	def load_sb3(self, sb3_path: str):
+		if not os.path.isfile(sb3_path):
+			raise FileNotFoundError(f'"{sb3_path}" does not exist')
+		if sb3_path.split('.')[-1] != 'sb3':
+			raise FileNotFoundError(f'"{sb3_path} is not a scratch project"')
+		Zip.unzip(sb3_path, self.unpacked)
+		# Load project.json
+		with open(f'{self.unpacked}/project.json', 'r') as fp:
+			self.json = json.loads(fp.read())
+		# Load package data
+		self.stage = [i for i in self.json['targets'] if i['name'] == 'Stage'][0]
+		if 'package.json' in self.stage['comments']:
+			package_json = json.loads(self.stage['comments']['package.json']['text'])
+			self.name = package_json['name']
+			self.description = package_json['description']
+			self.version = package_json['version']
+		else:
+			package_json = {
+				'sprites': {}
+			}
+			self.update_package_json()
+		# Load sprites
+		self.sprites = {
+			target['name']: Sprite(
+				self,
+				target,
+				dependencies=defaultdict(dict, package_json['sprites'])[target['name']]
+			)
+			for target in self.json['targets'] if target['name'] != 'Stage'
+		}
 		return self
 	
-	def get_sprite(self, sprite_name: str) -> dict:
-		for sprite in self.json['targets']:
-			if sprite['name'] == sprite_name: return sprite
-		raise KeyError(f'Sprite "{sprite_name}" does not exist')
-
-	def get_stage(self):
-		return self.get_sprite('Stage')
-
-	def make_block_ids_trackable(self) -> 'Project':
-		"""
-		assuming that block-ids will be random strings
-		if not already starting with self.id: append self.id to block-id
-		"""
-		sprite = self.get_sprite('Main')
-		# make = make block-id trackable
-		# make variables
-		sprite['variables'] = {
-			value[0]: value
-			for key, value in sprite['variables'].items()
+	def update_package_json(self):
+		self.stage['comments']['package.json'] = {
+			'blockId': None,
+			'x': 0,
+			'y': 0,
+			'width': 1000,
+			'height': 1000,
+			'minimized': False,
+			'text': json.dumps(
+				{
+					'name': self.name,
+					'description': self.description,
+					'version': self.version,
+					'sprites': {
+						sprite.name: sprite.dependencies
+						for sprite in self.sprites.values()
+					}
+				},
+				indent=2
+			)
 		}
-		# make for keys
-		sprite['blocks'] = {
-			(self.id+key) if key.count(OMEGA) == 0 else key: value
-			for key, value in sprite['blocks'].items()
+
+	def export_sb3(self, sb3_path: str):
+		self.update_package_json()		
+		with open(f'{self.unpacked}/project.json', 'w') as fp:
+			fp.write(json.dumps(self.json))
+		Zip.zip(self.unpacked, sb3_path)
+		return self
+
+
+class Sprite:
+	def __init__(self, package: Package, json: dict, dependencies: dict):
+		self.json = json
+		self.name = self.json['name']
+		self.package = package
+		self.dependencies = dependencies
+		self.track()
+
+	def track(self):
+		OMEGA = 'Ω'
+		tag = self.package.name + OMEGA
+		self.json['variables'] = {
+			variable[0]: variable
+			for variable in self.json['variables'].values()
 		}
-		for block in sprite['blocks'].values():
+		self.json['blocks'] = {
+			(tag+key) if key.count(OMEGA) == 0 else key: value
+			for key, value in self.json['blocks'].items()
+		}
+		for block in self.json['blocks'].values():
+			# I am not going to bother refactor this...
 			if type(block) is list:
 				block[2] = block[1]
 				continue
-			# make for next, parent
 			if block['next'] is not None and block['next'].count(OMEGA) == 0:
-				block['next'] = self.id+block['next']
+				block['next'] = tag+block['next']
 			if block['parent'] is not None and block['parent'].count(OMEGA) == 0:
-				block['parent'] = self.id+block['parent']
-			# make for block inputs
+				block['parent'] = tag+block['parent']
 			for input in block['inputs'].values():
 				if input[0] in (1,2,3) and type(input[1]) is str and input[1].count(OMEGA) == 0:
-					input[1] = self.id+input[1]
+					input[1] = tag+input[1]
 				if input[0] == 3 and type(input[1]) is list and input[1][0] == 12:
 					input[1][2] = input[1][1]
-			# make for custom blocks
 			if ( block['opcode'] == 'procedures_definition'
 				 and block['inputs']['custom_block'][1].count(OMEGA) == 0 ):
-				block['inputs']['custom_block'][1] = self.id+block['inputs']['custom_block'][1]
+				block['inputs']['custom_block'][1] = tag+block['inputs']['custom_block'][1]
 			elif block['opcode'] in ('procedures_prototype', 'procedures_call'):
 				block['mutation']['argumentids'] = str([
-					self.id+x if x.count(OMEGA) == 0 else x
+					tag+x if x.count(OMEGA) == 0 else x
 					for x in eval(block['mutation']['argumentids'])
 				]).replace("'", '"') # FIXME?
 				block['inputs'] = {
-					(self.id+key) if key.count(OMEGA) == 0 else key: value
+					(tag+key) if key.count(OMEGA) == 0 else key: value
 					for key, value in block['inputs'].items()
 				}
 				if block['opcode'] == 'procedures_prototype':
 					for input in block['inputs'].values():
 						if input[1].count(OMEGA) == 0:
-							input[1] = self.id+input[1]
+							input[1] = tag+input[1]
 		return self
-
-	def get_module_blocks(self) -> dict:
-		blocks = self.get_sprite('Main')['blocks']
+	
+	def get_package_blocks(self) -> dict:
 		blocks = {
-			key: block
-			for key, block in blocks.items()
-			if key.startswith(self.id)
-			and not (
-				block['opcode'] == 'procedures_definition'
-				and '!' in blocks[block['inputs']['custom_block'][1]]['mutation']['proccode']
-			)
+			block_id: block
+			for block_id, block in self.json['blocks'].items()
+			# Remove blocks with '#' in name:
+			if block_id.startswith(self.package.name)
+				and not (
+					block['opcode'] == 'procedures_definition'
+					and '#' in self.json['blocks']
+					[block['inputs']['custom_block'][1]]['mutation']['proccode']
+				)
 		}
 		for block in blocks.values():
-			if block['topLevel']:
-				block['x'] = 0
-				block['y'] = 0
+			# Stack all blocks on top of each other:
+			# if block['topLevel']:
+			# 	block['x'] = 0
+			# 	block['y'] = 0
+			# Hide blocks with '_' in name:
 			if block['opcode'] == 'procedures_definition':
 				if '_' in blocks[block['inputs']['custom_block'][1]]['mutation']['proccode']:
 					block['shadow'] = True
 		return blocks
 
-	def get_blocks_except_module(self, module_id: str) -> dict:
-		return {
-			key: value
-			for key, value in self.get_sprite('Main')['blocks'].items()
-			if not key.startswith(module_id)
+	def remove_package(self, package: Package):
+		try:
+			self.dependencies.pop(package.name)
+		except KeyError:
+			pass
+		self.json['blocks'] = {
+			block_id: block
+			for block_id, block in self.json['blocks'].items()
+			if not block_id.startswith(package.name)
 		}
-
-	def add_module(self, module: 'Project') -> 'Project':
-		sprite = self.get_sprite('Main')
-		module_sprite = module.get_sprite('Main')
-		sprite['variables'] = {**sprite['variables'], **module_sprite['variables']}
-		sprite['blocks'] = {**self.get_blocks_except_module(module.id), **module.get_module_blocks()}
-		return self
-	
-	def remove_module(self, module_id: str) -> 'Project':
-		sprite = self.get_sprite('Main')
-		sprite['blocks'] = self.get_blocks_except_module(module_id)
 		return self
 
+	def add_package(self, package: Package):
+		self.remove_package(package)
+		try:
+			sprite = package.sprites['Main']
+		except KeyError:
+			raise KeyError(f'"{package.name}" does not have a Main sprite, is it a SPM package?')
+		self.dependencies[package.name] = package.version
+		self.json['variables'] = {
+			**self.json['variables'],
+			**sprite.json['variables']
+		}
+		self.json['blocks'] = {
+			**sprite.get_package_blocks(),
+			**self.json['blocks']
+		}
+		def has_costume(costume1):
+			for self_costumes in self.json['costumes']:
+				if costume['name'] == self_costumes['name']:
+					return True
+			return False
+		diff_costumes = []
+		for costume in sprite.json['costumes']:
+			if not has_costume(costume):
+				diff_costumes.append(costume)
+		self.json['costumes'] += diff_costumes
+		for costume in diff_costumes:
+			os.system(f'cp -f \'{package.unpacked}/{costume["md5ext"]}\' \'{self.package.unpacked}\'')
+		return self
 
-class Interface:
+
+class Interface():
 	def __init__(self):
+		try:
+			self.run()
+		except KeyError as e:
+			rprint(f'[yellow]Error:[/yellow] "{e}"')
+			exit(1)
+		except Exception as e:
+			rprint(f'[yellow]{type(e).__name__}:[/yellow] {e}')
+			exit(1)
+
+	def run(self=None):
 		arg = sys.argv[1:]
 		if len(arg) > 0:
 			if len(arg) > 1:
-				if arg[1] == 'list-modules':
-					self.list_modules(arg[0])
+				if arg[1] == 'init':
+					Interface.init(arg[0])
 				elif len(arg) > 2:
-					if   arg[1] == 'add':
-						self.add(arg[0], arg[2])
-					elif arg[1] == 'remove':
-						self.remove(arg[0], arg[2])
+					if arg[2] == 'add':
+						if len(arg) > 3:
+								Interface.add(arg[0], arg[3], arg[1])
+						else:
+							rprint(f'[yellow]Missing package path[/yellow]')
+					elif arg[2] == 'remove':
+						if len(arg) > 3:
+							Interface.remove(arg[0], arg[3], arg[1])
+						else:
+							rprint(f'[yellow]Missing package name[/yellow]')
 					else:
-						rprint(f'[bold][red] {arg[1:]} is not a valid command')
-						exit(1)
+						rprint('[yellow]Possible commands are[/yellow] add, remove ')
 				else:
-					rprint('[bold][red] Missing module')
+					Interface.usage()
 					exit(1)
+			else:
+				Interface.usage()
+				exit(1)
 		else:
-			rprint('[bold][red] Please enter a command[/red] (See manual)')
+			Interface.usage()
 			exit(1)
-	
-	def list_modules(self, project_path):
-		rprint(Project(project_path).list_modules())
-	
-	def add(self, project_path: AnyPath, module_path: AnyPath):
-		( Project(project_path)
-			.make_block_ids_trackable()
-			.add_module(Project(module_path).make_block_ids_trackable())
-			.package_sb3() )
 
-	def remove(self, project_path, module_id):
-		( Project(project_path)
-			.make_block_ids_trackable()
-			.remove_module(module_id)
-			.package_sb3() )
+	@staticmethod
+	def usage():
+		rprint(__doc__)
+
+	@staticmethod
+	def init(main_path: str):
+		Package(main_path).export_sb3(main_path)
+	
+	@staticmethod
+	def add(main_path: str, package_path: str, sprite_name: str):
+		if not '.sb3' in package_path and not '/' in package_path:
+			package_path = f'spm-modules/{package_path}'
+			rprint(f'Resolving to [green]{package_path}[/green] for package path')
+		main = Package(main_path)
+		try:
+			sprite = main.sprites[sprite_name]
+		except KeyError:
+			raise KeyError(f'"main.name" does not have the sprite {sprite_name}')
+		sprite.add_package(Package(package_path))
+		main.export_sb3(main_path)
+	
+	@staticmethod
+	def remove(main_path: str, package_name: str, sprite_name: str):
+		main = Package(main_path)
+		try:
+			sprite = main.sprites[sprite_name]
+		except KeyError:
+			raise KeyError(f'"main.name" does not have the sprite {sprite_name}')
+		sprite.remove_package(package_name)
+		main.export_sb3(main_path)
 
 
 if __name__ == '__main__':
-	#project = Project('./Tests/Main.sb3')
-	#rprint(project.json)
 	Interface()
