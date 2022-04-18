@@ -27,6 +27,9 @@ import tempfile
 from rich import print as rprint
 from collections import defaultdict
 
+# CONFIG_FLAGS
+HIDE_BLOCKS = True
+
 
 class Zip:
 	@staticmethod
@@ -181,15 +184,16 @@ class Sprite:
 					[block['inputs']['custom_block'][1]]['mutation']['proccode']
 				)
 		}
-		for block in blocks.values():
-			# Stack all blocks on top of each other:
-			# if block['topLevel']:
-			# 	block['x'] = 0
-			# 	block['y'] = 0
-			# Hide blocks with '_' in name:
-			if block['opcode'] == 'procedures_definition':
-				if '_' in blocks[block['inputs']['custom_block'][1]]['mutation']['proccode']:
-					block['shadow'] = True
+		if HIDE_BLOCKS:
+		    for block in blocks.values():
+		    	# Stack all blocks on top of each other:
+		    	# if block['topLevel']:
+		    	# 	block['x'] = 0
+		    	# 	block['y'] = 0
+		    	# Hide blocks with '_' in name:
+		    	if block['opcode'] == 'procedures_definition':
+		    		if '_' in blocks[block['inputs']['custom_block'][1]]['mutation']['proccode']:
+		    			block['shadow'] = True
 		return blocks
 
 	def remove_package(self, package: Package):
