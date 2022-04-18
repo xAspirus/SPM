@@ -28,7 +28,7 @@ from rich import print as rprint
 from collections import defaultdict
 
 # CONFIG_FLAGS
-HIDE_BLOCKS = True
+HIDE_BLOCKS = False
 
 
 class Zip:
