@@ -3,16 +3,15 @@ Develop scratch projects by dividing code into modules.
 
 
 ## Installation
-Just add a link to ./spm.py to a folder in your path.
+Requirements:
+ * python3
+ * python modules:
+    * rich
+ * zip
+ * unzip
 
-```sh
-link -sf /path/to/repo/spm.py ~/.bin/spm
-# In your shell configs
-# zsh:  ~/.zshrc
-PATH+=(~/.bin)
-# bash: ~/.bash_login
-PATH=$PATH:~/.bin
-```
+Add a symlink to spm.py in /usr/bin/spm and use `git pull` to update.
+
 
 ## Warning: Using SPM with Turbowarp
 Turbowarp has a feature which optimizes the IDs of blocks, which makes it
