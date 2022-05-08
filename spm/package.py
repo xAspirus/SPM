@@ -20,7 +20,7 @@ class Package(Sprite):
 	def get_json(self):
 		self.blocks['package_json']['parent'] = json.dumps(self.package_json)
 		return super().get_json()
-
+	
 	def track(self):
 		if 'package_json' in self.blocks:
 			self.package_json = json.loads(self.blocks['package_json']['parent'])
@@ -59,7 +59,6 @@ class Package(Sprite):
 				block['opcode'] == 'procedures_definition'
 				and '#' in self.blocks[block['inputs']['custom_block'][1]]['mutation']['proccode']
 			)
-
 		}
 	
 	def add(self, pkg_sprite: Self):
@@ -89,7 +88,7 @@ class Package(Sprite):
 			if a != pkg_name
 		}
 		return self
-
+	
 	def track_block_ids(self):
 		OMEGA = 'Ω'
 		tag = self.name + OMEGA
