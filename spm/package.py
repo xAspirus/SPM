@@ -1,5 +1,3 @@
-from rich import print as rprint
-
 from scratch import *
 
 Self = None # Wait for Python 3.11
@@ -37,7 +35,7 @@ class Package(Sprite):
 		for costume in self.costumes.values():
 			if costume.name not in self.package_json['costumes']:
 				self.package_json['costumes'][costume.name] = self.name
-		package_json['costumes'] = {
+		self.package_json['costumes'] = {
 			a:b
 			for a,b in self.package_json['costumes'].items()
 			if a in self.costumes
@@ -67,7 +65,7 @@ class Package(Sprite):
 		self.costumes = {
 			name:costume
 			for name,costume in self.costumes.items()
-			if name not in self.package_json[pkg_sprite.name]['costumes']
+			if name not in self.package_json['costumes']
 		}
 		for costume in pkg_sprite.costumes.values():
 			self.add_costume(costume, f'{pkg_sprite.project.unpacked.name}/{costume.md5ext}')

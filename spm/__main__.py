@@ -12,7 +12,7 @@ def main():
 
 def get_main_sprite_name(project: Project) -> str:
 	if project.name in project.sprites and project.name != 'Stage':
-		return pkg.name
+		return project.name
 	else:
 		return next(filter(lambda x: x != 'Stage', project.sprites))
 
@@ -32,6 +32,7 @@ def merge(main_path: str, pkg_path: str, main_sprite_name: str, pkg_sprite_name:
 	Package.convert_sprite(main.sprites[main_sprite_name])
 	Package.convert_sprite(pkg.sprites[pkg_sprite_name])
 	main.sprites[main_sprite_name].add(pkg.sprites[pkg_sprite_name])
+	main.export_sb3(main_path)
 
 
 def remove(main_path: str, main_sprite_name: str, pkg_name: str):
@@ -40,6 +41,7 @@ def remove(main_path: str, main_sprite_name: str, pkg_name: str):
 		main_sprite_name = get_main_sprite_name(main)
 	Package.convert(main.sprites[main_sprite_name])
 	main.sprites[main_sprite_name].remove(pkg_name)
+	main.export_sb3(main_path)
 
 
 main()

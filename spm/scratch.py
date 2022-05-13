@@ -40,10 +40,11 @@ class Project:
 
 
 class Variable:
-	def __init__(self, id, name, value):
+	def __init__(self, id, name, value, is_cloud=False):
 		self.id: str = id
 		self.name: str = name
 		self.value = value
+		self.is_cloud = is_cloud
 
 
 class List:
@@ -94,8 +95,7 @@ class Costume:
 
 class Sound:
 	def __init__(self, assetId, name, dataFormat, format, rate, sampleCount,
-	             md5ext
-				):
+	             md5ext):
 		self.asset_id: str = assetId
 		self.name: str = name
 		self.data_format: str = dataFormat
